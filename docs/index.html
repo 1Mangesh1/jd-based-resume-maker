@@ -64,15 +64,15 @@
       <div class="modal-body">
         <!-- Upload Zone (shown first) -->
         <div id="uploadZone">
-          <div class="drop-zone" id="dropZone">
+          <label class="drop-zone" id="dropZone" for="resumeFile">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
             </svg>
             <p>Drop your resume PDF here</p>
             <p class="dim">or click to browse</p>
-            <input type="file" id="resumeFile" accept=".pdf,.txt" hidden>
-          </div>
+            <input type="file" id="resumeFile" accept=".pdf,.txt" style="display:none">
+          </label>
           <div class="or-divider"><span>or paste resume text</span></div>
           <textarea id="resumeText" rows="6" placeholder="Paste your resume content here..." class="paste-area"></textarea>
           <button class="btn-primary btn-full" id="parseBtn">Parse with AI</button>

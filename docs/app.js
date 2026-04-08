@@ -398,8 +398,7 @@ async function parseResume() {
   parseBtn.disabled = false;
 }
 
-// Drag & drop
-dropZone.onclick = () => resumeFile.click();
+// Drag & drop (click handled by <label for="resumeFile">)
 resumeFile.onchange = () => {
   if (resumeFile.files.length) {
     dropZone.querySelector('p').textContent = resumeFile.files[0].name;
