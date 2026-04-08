@@ -94,8 +94,14 @@ async function runAI(ai: Ai, system: string, prompt: string): Promise<string> {
   if (typeof res === 'string') return res;
   if (res && typeof res === 'object') {
     const r = res as Record<string, unknown>;
-    if (typeof r.response === 'string') return r.response;
+    // Workers AI returns { response: string | object }
+    if (r.response !== undefined && r.response !== null) {
+      if (typeof r.response === 'string') return r.response;
+      // Some models return response as parsed object already
+      return JSON.stringify(r.response);
+    }
     if (typeof r.result === 'string') return r.result;
+    if (typeof r.text === 'string') return r.text;
     return JSON.stringify(res);
   }
   return String(res ?? '');
