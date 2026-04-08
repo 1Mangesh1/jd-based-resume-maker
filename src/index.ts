@@ -238,6 +238,74 @@ Rules:
   }
 }
 
+async function handleParseResume(body: any, env: Env) {
+  const { text } = body;
+  if (!text || typeof text !== 'string' || text.length < 20) {
+    return json({ error: 'Resume text is too short or missing.' }, 400);
+  }
+
+  const resumeText = text.length > 8000 ? text.slice(0, 8000) : text;
+
+  const raw = await runAI(
+    env.AI,
+    'You are a resume parser. Extract structured data from resume text. Respond ONLY with valid JSON, no markdown.',
+    `Parse this resume into structured JSON.
+
+RESUME TEXT:
+${resumeText}
+
+Return JSON:
+{
+  "name": "full name",
+  "title": "professional title or most recent job title",
+  "email": "email address",
+  "phone": "phone number",
+  "location": "city, state/country",
+  "summary": "professional summary if present, otherwise write a 2-sentence summary based on the resume",
+  "skills": ["skill1", "skill2"],
+  "experience": [
+    {
+      "company": "company name",
+      "role": "job title",
+      "startDate": "start date",
+      "endDate": "end date or Present",
+      "bullets": ["achievement 1", "achievement 2"]
+    }
+  ],
+  "education": [
+    { "institution": "school name", "degree": "degree", "year": "graduation year" }
+  ],
+  "certifications": ["cert1", "cert2"],
+  "links": [{ "label": "LinkedIn", "url": "https://..." }]
+}
+
+Rules:
+- Extract ALL experience entries, not just the most recent
+- Keep bullet points as-is from the resume
+- If a field is not found, use empty string or empty array
+- Parse dates as they appear (e.g., "Jan 2020", "2020-01")
+- Extract ALL skills mentioned anywhere in the resume`
+  );
+
+  try {
+    const profile = parseJSON(raw);
+    profile.name = profile.name || '';
+    profile.title = profile.title || '';
+    profile.email = profile.email || '';
+    profile.phone = profile.phone || '';
+    profile.location = profile.location || '';
+    profile.summary = profile.summary || '';
+    profile.skills = profile.skills || [];
+    profile.experience = profile.experience || [];
+    profile.education = profile.education || [];
+    profile.certifications = profile.certifications || [];
+    profile.links = profile.links || [];
+    return json({ profile });
+  } catch {
+    return json({ error: 'Failed to parse resume. Preview: ' + raw.slice(0, 200) }, 500);
+  }
+}
+
 // --- Main ---
 
 export default {
@@ -255,6 +323,7 @@ export default {
 
       const body = await request.json();
 
+      if (url.pathname === '/api/parse-resume') return handleParseResume(body, env);
       if (url.pathname === '/api/analyze') return handleAnalyze(body, env);
       if (url.pathname === '/api/tailor') return handleTailor(body, env);
 

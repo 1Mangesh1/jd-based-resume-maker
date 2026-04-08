@@ -319,6 +319,105 @@ function buildPDF(r) {
   pdfMake.createPdf(dd).download(filename);
 }
 
+// --- Resume Upload & Parse ---
+
+const uploadZone = $('#uploadZone');
+const dropZone = $('#dropZone');
+const resumeFile = $('#resumeFile');
+const resumeText = $('#resumeText');
+const parseBtn = $('#parseBtn');
+const parseStatus = $('#parseStatus');
+
+function showUploadZone() {
+  uploadZone.style.display = '';
+  profileForm.style.display = 'none';
+}
+
+function showEditForm() {
+  uploadZone.style.display = 'none';
+  profileForm.style.display = '';
+}
+
+// PDF text extraction using pdf.js
+async function extractPDFText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(item => item.str).join(' ') + '\n';
+  }
+  return text;
+}
+
+async function parseResume() {
+  let text = '';
+
+  if (resumeFile.files.length > 0) {
+    const file = resumeFile.files[0];
+    parseStatus.textContent = 'Extracting text from PDF...';
+    parseStatus.className = 'parse-status';
+    if (file.name.endsWith('.pdf')) {
+      try {
+        text = await extractPDFText(file);
+      } catch (e) {
+        parseStatus.textContent = 'Failed to read PDF. Try pasting the text instead.';
+        parseStatus.className = 'parse-status error';
+        return;
+      }
+    } else {
+      text = await file.text();
+    }
+  } else if (resumeText.value.trim()) {
+    text = resumeText.value.trim();
+  }
+
+  if (!text || text.length < 20) {
+    parseStatus.textContent = 'Upload a PDF or paste your resume text first.';
+    parseStatus.className = 'parse-status error';
+    return;
+  }
+
+  parseBtn.disabled = true;
+  parseStatus.textContent = 'AI is parsing your resume...';
+  parseStatus.className = 'parse-status';
+
+  try {
+    const data = await api('/api/parse-resume', { text });
+    const profile = data.profile;
+    saveProfile(profile);
+    fillForm(profile);
+    showEditForm();
+    parseStatus.textContent = '';
+  } catch (e) {
+    parseStatus.textContent = 'Parse failed: ' + e.message;
+    parseStatus.className = 'parse-status error';
+  }
+
+  parseBtn.disabled = false;
+}
+
+// Drag & drop
+dropZone.onclick = () => resumeFile.click();
+resumeFile.onchange = () => {
+  if (resumeFile.files.length) {
+    dropZone.querySelector('p').textContent = resumeFile.files[0].name;
+  }
+};
+dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('over'); };
+dropZone.ondragleave = () => dropZone.classList.remove('over');
+dropZone.ondrop = (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('over');
+  if (e.dataTransfer.files.length) {
+    resumeFile.files = e.dataTransfer.files;
+    dropZone.querySelector('p').textContent = e.dataTransfer.files[0].name;
+  }
+};
+
+parseBtn.onclick = parseResume;
+
 // --- Events ---
 
 $('#analyzeBtn').onclick = analyze;
@@ -326,9 +425,20 @@ urlInput.onkeydown = (e) => { if (e.key === 'Enter') analyze(); };
 $('#sendBtn').onclick = sendAnswer;
 chatInput.onkeydown = (e) => { if (e.key === 'Enter') sendAnswer(); };
 
-$('#profileBtn').onclick = () => { fillForm(loadProfile()); profileModal.classList.add('on'); };
+$('#profileBtn').onclick = () => {
+  const p = loadProfile();
+  if (p) {
+    fillForm(p);
+    showEditForm();
+  } else {
+    showUploadZone();
+  }
+  profileModal.classList.add('on');
+};
 $('#closeModal').onclick = () => profileModal.classList.remove('on');
 profileModal.onclick = (e) => { if (e.target === profileModal) profileModal.classList.remove('on'); };
+
+$('#reuploadBtn').onclick = showUploadZone;
 
 profileForm.onsubmit = (e) => {
   e.preventDefault();
@@ -340,5 +450,8 @@ profileForm.onsubmit = (e) => {
 $('#addExp').onclick = () => addExpCard();
 $('#addEdu').onclick = () => addEduCard();
 
-// Init: open profile modal if no profile
-if (!loadProfile()) profileModal.classList.add('on');
+// Init
+if (!loadProfile()) {
+  profileModal.classList.add('on');
+  showUploadZone();
+}
