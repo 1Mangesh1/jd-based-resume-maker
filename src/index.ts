@@ -191,50 +191,60 @@ async function handleTailor(body: any, env: Env) {
   const raw = await runAI(
     env.AI,
     'You are an expert resume writer. Respond ONLY with valid JSON, no markdown.',
-    `Tailor this resume for the job description.
+    `Tailor this resume for the job description. KEEP ALL ORIGINAL CONTENT — only reorder and rewrite to emphasize relevance.
 
 JOB DESCRIPTION:
 ${jdText}
 
-PROFILE:
+FULL ORIGINAL PROFILE:
 ${JSON.stringify(profile)}
 
-GAP ANSWERS:
+GAP ANSWERS FROM CANDIDATE:
 ${answersStr}
 
-Return JSON:
+Return JSON with the COMPLETE resume — every experience, project, education entry:
 {
   "name": "${profile.name || ''}",
-  "title": "tailored title for this role",
+  "title": "tailored title matching the JD role",
   "email": "${profile.email || ''}",
   "phone": "${profile.phone || ''}",
   "location": "${profile.location || ''}",
-  "summary": "2-3 sentence tailored summary",
+  "links": ${JSON.stringify(profile.links || [])},
+  "summary": "rewrite the summary to align with this specific JD - 2-3 sentences",
   "experience": [
-    { "company": "...", "role": "...", "startDate": "...", "endDate": "...", "bullets": ["achievement bullet 1"] }
+    { "company": "...", "role": "...", "startDate": "...", "endDate": "...", "bullets": ["ALL bullets - reworded to emphasize JD-relevant achievements"] }
   ],
-  "skills": ["most relevant first"],
-  "education": [{ "institution": "...", "degree": "...", "year": "..." }],
-  "certifications": ["..."]
+  "projects": [
+    { "name": "...", "tech": "...", "bullets": ["..."], "link": "..." }
+  ],
+  "skills": ["reorder: most JD-relevant first, but keep ALL original skills"],
+  "education": ${JSON.stringify(profile.education || [])},
+  "certifications": ${JSON.stringify(profile.certifications || [])}
 }
 
-Rules:
-- Rewrite summary for this specific role
-- Reorder and rewrite bullets to emphasize relevant experience
-- If candidate said "No" to a gap, do NOT add that skill
-- Do NOT fabricate experience
-- Put most relevant skills first`
+CRITICAL RULES:
+- Include ALL experience entries from the original - do NOT drop any
+- Include ALL projects from the original
+- Include ALL education entries
+- Keep ALL bullet points — reword them to emphasize JD-relevant keywords but keep the substance
+- Reorder skills so JD-relevant ones come first, but keep ALL skills
+- Reorder experience bullets so the most relevant are first
+- Add keywords from gap answers naturally into existing bullets where the candidate confirmed experience
+- Do NOT fabricate new experience or bullets
+- Do NOT remove content - the output should be as comprehensive as the input
+- If candidate said "No" to a gap, do NOT add that skill`
   );
 
   try {
     const resume = parseJSON(raw);
-    // Fill in any missing fields from profile
     resume.name = resume.name || profile.name || '';
     resume.email = resume.email || profile.email || '';
     resume.phone = resume.phone || profile.phone || '';
     resume.location = resume.location || profile.location || '';
+    resume.links = resume.links || profile.links || [];
     resume.summary = resume.summary || profile.summary || '';
     resume.experience = resume.experience || profile.experience || [];
+    resume.projects = resume.projects || profile.projects || [];
     resume.skills = resume.skills || profile.skills || [];
     resume.education = resume.education || profile.education || [];
     resume.certifications = resume.certifications || profile.certifications || [];
@@ -276,8 +286,8 @@ async function handleParseResume(body: any, env: Env) {
 
   const raw = await runAI(
     env.AI,
-    'You are a resume parser. Extract structured data from resume text. Respond ONLY with valid JSON, no markdown.',
-    `Parse this resume into structured JSON.
+    'You are a resume parser. Extract EVERY detail from the resume. Respond ONLY with valid JSON, no markdown.',
+    `Parse this resume COMPLETELY into structured JSON. Do NOT skip anything.
 
 RESUME TEXT:
 ${resumeText}
@@ -289,30 +299,42 @@ Return JSON:
   "email": "email address",
   "phone": "phone number",
   "location": "city, state/country",
-  "summary": "professional summary if present, otherwise write a 2-sentence summary based on the resume",
-  "skills": ["skill1", "skill2"],
+  "summary": "copy the FULL summary/professional summary exactly as written",
+  "skills": ["every single skill mentioned, grouped: Language skills first, then frameworks, then tools"],
   "experience": [
     {
-      "company": "company name",
-      "role": "job title",
-      "startDate": "start date",
-      "endDate": "end date or Present",
-      "bullets": ["achievement 1", "achievement 2"]
+      "company": "company name with location if given",
+      "role": "exact job title",
+      "startDate": "start date as written",
+      "endDate": "end date as written",
+      "bullets": ["copy EVERY bullet point exactly as written in the resume - do NOT summarize or skip any"]
+    }
+  ],
+  "projects": [
+    {
+      "name": "project name",
+      "tech": "tech stack used",
+      "bullets": ["every bullet exactly as written"],
+      "link": "project link if any"
     }
   ],
   "education": [
-    { "institution": "school name", "degree": "degree", "year": "graduation year" }
+    { "institution": "full school name with location", "degree": "full degree name", "year": "year range or graduation year", "score": "GPA/percentage if mentioned" }
   ],
   "certifications": ["cert1", "cert2"],
-  "links": [{ "label": "LinkedIn", "url": "https://..." }]
+  "links": [{ "label": "LinkedIn", "url": "url" }, { "label": "GitHub", "url": "url" }, { "label": "Portfolio", "url": "url" }]
 }
 
-Rules:
-- Extract ALL experience entries, not just the most recent
-- Keep bullet points as-is from the resume
-- If a field is not found, use empty string or empty array
-- Parse dates as they appear (e.g., "Jan 2020", "2020-01")
-- Extract ALL skills mentioned anywhere in the resume`
+CRITICAL RULES:
+- Extract EVERY experience entry - interns, trainees, ALL of them
+- Copy ALL bullet points VERBATIM - do not summarize, shorten or skip any
+- Extract ALL projects with their full descriptions
+- Extract ALL education entries (degree, diploma, etc.)
+- Extract ALL links (LinkedIn, GitHub, portfolio, etc.)
+- Extract ALL skills - every single one mentioned anywhere
+- If skills are categorized (Languages, Backend, Cloud, etc.), flatten into one array but keep all
+- Copy the summary EXACTLY as written, word for word
+- Do NOT skip or truncate anything`
   );
 
   try {
@@ -325,6 +347,7 @@ Rules:
     profile.summary = profile.summary || '';
     profile.skills = profile.skills || [];
     profile.experience = profile.experience || [];
+    profile.projects = profile.projects || [];
     profile.education = profile.education || [];
     profile.certifications = profile.certifications || [];
     profile.links = profile.links || [];

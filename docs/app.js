@@ -13,6 +13,7 @@ const chatInput = $('#chatInput');
 const profileModal = $('#profileModal');
 const profileForm = $('#profileForm');
 const expList = $('#expList');
+const projList = $('#projList');
 const eduList = $('#eduList');
 
 // --- Profile (localStorage) ---
@@ -34,10 +35,17 @@ function collectFormProfile() {
     endDate: c.querySelector('.exp-ed').value,
     bullets: c.querySelector('.exp-bl').value.split('\n').map(b => b.trim()).filter(Boolean),
   }));
+  const projects = [...projList.querySelectorAll('.card')].map(c => ({
+    name: c.querySelector('.proj-name').value,
+    tech: c.querySelector('.proj-tech').value,
+    bullets: c.querySelector('.proj-bl').value.split('\n').map(b => b.trim()).filter(Boolean),
+    link: c.querySelector('.proj-link').value,
+  }));
   const education = [...eduList.querySelectorAll('.card')].map(c => ({
     institution: c.querySelector('.edu-inst').value,
     degree: c.querySelector('.edu-deg').value,
     year: c.querySelector('.edu-yr').value,
+    score: c.querySelector('.edu-score').value,
   }));
   const links = f.links.value.trim()
     ? f.links.value.trim().split('\n').map(l => {
@@ -53,7 +61,7 @@ function collectFormProfile() {
     location: f.location.value.trim(),
     summary: f.summary.value.trim(),
     skills: f.skills.value.split(',').map(s => s.trim()).filter(Boolean),
-    experience, education,
+    experience, projects, education,
     certifications: f.certs.value.split(',').map(s => s.trim()).filter(Boolean),
     links,
   };
@@ -73,6 +81,8 @@ function fillForm(p) {
   f.links.value = (p.links || []).map(l => `${l.label} | ${l.url}`).join('\n');
   expList.innerHTML = '';
   (p.experience || []).forEach(e => addExpCard(e));
+  projList.innerHTML = '';
+  (p.projects || []).forEach(e => addProjCard(e));
   eduList.innerHTML = '';
   (p.education || []).forEach(e => addEduCard(e));
 }
@@ -90,13 +100,26 @@ function addExpCard(d = {}) {
   expList.appendChild(c);
 }
 
+function addProjCard(d = {}) {
+  const c = document.createElement('div');
+  c.className = 'card';
+  c.innerHTML = `<button type="button" class="x">&times;</button>
+    <div class="row"><div class="field"><label>Project Name</label><input class="proj-name" value="${d.name || ''}" placeholder="My Project"></div>
+    <div class="field"><label>Tech Stack</label><input class="proj-tech" value="${d.tech || ''}" placeholder="React, Node.js"></div></div>
+    <div class="field"><label>Link</label><input class="proj-link" value="${d.link || ''}" placeholder="https://github.com/..."></div>
+    <div class="field"><label>Bullets <span class="dim">(one per line)</span></label><textarea class="proj-bl" rows="2" placeholder="Built a...">${(d.bullets || []).join('\n')}</textarea></div>`;
+  c.querySelector('.x').onclick = () => c.remove();
+  projList.appendChild(c);
+}
+
 function addEduCard(d = {}) {
   const c = document.createElement('div');
   c.className = 'card';
   c.innerHTML = `<button type="button" class="x">&times;</button>
     <div class="row"><div class="field"><label>Institution</label><input class="edu-inst" value="${d.institution || ''}" placeholder="MIT"></div>
     <div class="field"><label>Degree</label><input class="edu-deg" value="${d.degree || ''}" placeholder="B.S. CS"></div></div>
-    <div class="field"><label>Year</label><input class="edu-yr" value="${d.year || ''}" placeholder="2020"></div>`;
+    <div class="row"><div class="field"><label>Year</label><input class="edu-yr" value="${d.year || ''}" placeholder="2020"></div>
+    <div class="field"><label>Score</label><input class="edu-score" value="${d.score || ''}" placeholder="CGPA: 8.0"></div></div>`;
   c.querySelector('.x').onclick = () => c.remove();
   eduList.appendChild(c);
 }
@@ -237,7 +260,12 @@ async function generate() {
 // --- PDF (pdfmake, runs in browser) ---
 
 function buildPDF(r) {
-  const contactLine = [r.email, r.phone, r.location].filter(Boolean).join('  |  ');
+  const contactParts = [r.phone, r.email, r.location].filter(Boolean);
+  // Add links inline
+  if (r.links?.length) {
+    r.links.forEach(l => { if (l.url) contactParts.push(l.url.replace(/^https?:\/\//, '')); });
+  }
+  const contactLine = contactParts.join('  •  ');
 
   const content = [];
 
@@ -277,6 +305,28 @@ function buildPDF(r) {
     content.push({ text: r.skills.join('  \u2022  '), style: 'body', margin: [0, 0, 0, 8] });
   }
 
+  // Projects
+  if (r.projects?.length) {
+    content.push({ text: 'PROJECTS', style: 'section', margin: [0, 6, 0, 4] });
+    r.projects.forEach(proj => {
+      const projHeader = [proj.name || ''];
+      if (proj.tech) projHeader.push(proj.tech);
+      content.push({
+        columns: [
+          { text: projHeader[0], style: 'jobTitle', width: '*' },
+          { text: proj.tech || '', style: 'dates', width: 'auto', alignment: 'right' },
+        ],
+        margin: [0, 4, 0, 0],
+      });
+      if (proj.link) {
+        content.push({ text: proj.link, style: 'contact', margin: [0, 1, 0, 2] });
+      }
+      if (proj.bullets?.length) {
+        content.push({ ul: proj.bullets.map(b => ({ text: b, style: 'bullet' })), margin: [8, 0, 0, 4] });
+      }
+    });
+  }
+
   // Education
   if (r.education?.length) {
     content.push({ text: 'EDUCATION', style: 'section', margin: [0, 6, 0, 4] });
@@ -287,7 +337,9 @@ function buildPDF(r) {
           { text: edu.year || '', style: 'dates', width: 'auto', alignment: 'right' },
         ],
       });
-      content.push({ text: edu.institution || '', style: 'company', margin: [0, 1, 0, 4] });
+      const eduSub = [edu.institution || ''];
+      if (edu.score) eduSub.push(edu.score);
+      content.push({ text: eduSub.join(' — '), style: 'company', margin: [0, 1, 0, 4] });
     });
   }
 
@@ -475,6 +527,7 @@ profileForm.onsubmit = (e) => {
 };
 
 $('#addExp').onclick = () => addExpCard();
+$('#addProj').onclick = () => addProjCard();
 $('#addEdu').onclick = () => addEduCard();
 
 // Init
