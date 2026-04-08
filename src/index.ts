@@ -245,12 +245,34 @@ Rules:
 }
 
 async function handleParseResume(body: any, env: Env) {
-  const { text } = body;
-  if (!text || typeof text !== 'string' || text.length < 20) {
+  let resumeText = '';
+
+  if (body.pdf_base64) {
+    // Decode base64 PDF, extract readable text from bytes
+    const binary = atob(body.pdf_base64);
+    let raw = '';
+    for (let i = 0; i < binary.length; i++) {
+      const code = binary.charCodeAt(i);
+      if (code >= 32 && code < 127) raw += binary[i];
+      else if (code === 10 || code === 13) raw += '\n';
+      else raw += ' ';
+    }
+    // Filter PDF internal commands, keep readable text
+    resumeText = raw.split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 3 && !/^\d+ \d+ obj/.test(l) && !/^\/\w+/.test(l)
+        && !/^stream|endstream|endobj|xref|trailer/.test(l) && !/^</.test(l))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n');
+  } else if (body.text && typeof body.text === 'string') {
+    resumeText = body.text;
+  }
+
+  if (resumeText.length < 20) {
     return json({ error: 'Resume text is too short or missing.' }, 400);
   }
 
-  const resumeText = text.length > 8000 ? text.slice(0, 8000) : text;
+  resumeText = resumeText.length > 8000 ? resumeText.slice(0, 8000) : resumeText;
 
   const raw = await runAI(
     env.AI,

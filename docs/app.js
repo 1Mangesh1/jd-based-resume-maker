@@ -338,39 +338,56 @@ function showEditForm() {
   profileForm.style.display = '';
 }
 
-// Extract readable text from PDF bytes (no dependencies)
-function extractTextFromPDF(arrayBuffer) {
-  const bytes = new Uint8Array(arrayBuffer);
-  let raw = '';
-  for (let i = 0; i < bytes.length; i++) {
-    const b = bytes[i];
-    if (b >= 32 && b < 127) raw += String.fromCharCode(b);
-    else if (b === 10 || b === 13) raw += '\n';
-    else raw += ' ';
+// Extract text from PDF using local pdf.js (with timeout)
+async function extractPDFText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+
+  if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js not loaded');
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+
+  // Race against a 15s timeout so it never hangs
+  const pdfPromise = pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000));
+  const pdf = await Promise.race([pdfPromise, timeout]);
+
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    text += tc.items.map(item => item.str).join(' ') + '\n';
   }
-  // Clean: collapse whitespace, remove binary noise
-  let text = raw.replace(/[^\x20-\x7E\n]/g, ' ').replace(/ {3,}/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
-  // Filter out lines that look like binary/PDF commands
-  text = text.split('\n')
-    .filter(l => l.length > 3 && !/^[\d\s.]+$/.test(l) && !/^\/\w+/.test(l) && !/^\d+ \d+ obj/.test(l) && !/^stream|endstream|endobj/.test(l))
-    .join('\n');
-  return text;
+  return text.trim();
 }
 
 async function parseResume() {
   let text = '';
+
+  parseBtn.disabled = true;
+
   try {
     if (resumeFile.files && resumeFile.files.length > 0) {
       const file = resumeFile.files[0];
-      parseStatus.textContent = 'Reading ' + file.name + '...';
-      parseStatus.className = 'parse-status';
 
       if (file.name.toLowerCase().endsWith('.pdf')) {
-        const buf = await file.arrayBuffer();
-        text = extractTextFromPDF(buf);
-        if (text.length < 50) {
-          parseStatus.textContent = 'Could not read PDF text. Paste your resume text below instead.';
-          parseStatus.className = 'parse-status error';
+        parseStatus.textContent = 'Extracting text from ' + file.name + '...';
+        parseStatus.className = 'parse-status';
+        try {
+          text = await extractPDFText(file);
+        } catch (e) {
+          // pdf.js failed — send raw base64 to Worker instead
+          parseStatus.textContent = 'Local parse failed, sending to AI...';
+          const buf = await file.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          const b64 = btoa(binary);
+          const data = await api('/api/parse-resume', { pdf_base64: b64 });
+          saveProfile(data.profile);
+          fillForm(data.profile);
+          showEditForm();
+          parseStatus.textContent = '';
+          parseBtn.disabled = false;
           return;
         }
       } else {
@@ -382,16 +399,17 @@ async function parseResume() {
   } catch (e) {
     parseStatus.textContent = 'Failed to read file: ' + (e.message || e);
     parseStatus.className = 'parse-status error';
+    parseBtn.disabled = false;
     return;
   }
 
   if (!text || text.length < 20) {
     parseStatus.textContent = 'Upload a PDF or paste your resume text first.';
     parseStatus.className = 'parse-status error';
+    parseBtn.disabled = false;
     return;
   }
 
-  parseBtn.disabled = true;
   parseStatus.textContent = 'AI is parsing your resume...';
   parseStatus.className = 'parse-status';
 
