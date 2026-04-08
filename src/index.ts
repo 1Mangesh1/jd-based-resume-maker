@@ -218,6 +218,7 @@ Return JSON with the COMPLETE resume — every experience, project, education en
     { "name": "...", "tech": "...", "bullets": ["..."], "link": "..." }
   ],
   "skills": ["reorder: most JD-relevant first, but keep ALL original skills"],
+  "skillsText": "Reorder the categorized skills so JD-relevant categories come first. Keep the Category: skill1, skill2 format. Keep ALL skills.",
   "education": ${JSON.stringify(profile.education || [])},
   "certifications": ${JSON.stringify(profile.certifications || [])}
 }
@@ -246,6 +247,7 @@ CRITICAL RULES:
     resume.experience = resume.experience || profile.experience || [];
     resume.projects = resume.projects || profile.projects || [];
     resume.skills = resume.skills || profile.skills || [];
+    resume.skillsText = resume.skillsText || profile.skillsText || '';
     resume.education = resume.education || profile.education || [];
     resume.certifications = resume.certifications || profile.certifications || [];
     return json({ resume });
@@ -300,7 +302,8 @@ Return JSON:
   "phone": "phone number",
   "location": "city, state/country",
   "summary": "copy the FULL summary/professional summary exactly as written",
-  "skills": ["every single skill mentioned, grouped: Language skills first, then frameworks, then tools"],
+  "skills": ["every single skill mentioned as flat array"],
+  "skillsText": "Preserve the EXACT categorized skills text as written, e.g.:\nLanguages: Python, JavaScript\nBackend: Django, FastAPI\nCloud: AWS, EC2, S3\n(one category per line, keep all categories exactly as in the resume)",
   "experience": [
     {
       "company": "company name with location if given",
@@ -346,6 +349,7 @@ CRITICAL RULES:
     profile.location = profile.location || '';
     profile.summary = profile.summary || '';
     profile.skills = profile.skills || [];
+    profile.skillsText = profile.skillsText || '';
     profile.experience = profile.experience || [];
     profile.projects = profile.projects || [];
     profile.education = profile.education || [];

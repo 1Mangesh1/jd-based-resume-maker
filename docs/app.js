@@ -258,112 +258,175 @@ async function generate() {
 }
 
 // --- PDF (pdfmake, runs in browser) ---
+// Template matches: Name centered, contact with •, categorized skills, experience with bullets, projects, education with scores
+
+function sectionHeader(title) {
+  return [
+    { text: title, style: 'section' },
+    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#000000' }], margin: [0, 1, 0, 4] },
+  ];
+}
 
 function buildPDF(r) {
-  const contactParts = [r.phone, r.email, r.location].filter(Boolean);
-  // Add links inline
+  // Contact line: phone • email • links
+  const contactParts = [r.phone, r.email].filter(Boolean);
   if (r.links?.length) {
     r.links.forEach(l => { if (l.url) contactParts.push(l.url.replace(/^https?:\/\//, '')); });
   }
-  const contactLine = contactParts.join('  •  ');
+  const contactLine = contactParts.join(' • ');
 
   const content = [];
 
-  // Header
-  content.push({ text: r.name || '', style: 'name', alignment: 'center' });
-  content.push({ text: r.title || '', style: 'title', alignment: 'center', margin: [0, 2, 0, 2] });
-  content.push({ text: contactLine, style: 'contact', alignment: 'center', margin: [0, 0, 0, 8] });
-  content.push({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 0.5, lineColor: '#999999' }], margin: [0, 0, 0, 8] });
+  // --- NAME ---
+  content.push({ text: (r.name || '').toUpperCase(), style: 'name', alignment: 'center' });
 
-  // Summary
+  // --- CONTACT ---
+  content.push({ text: contactLine, style: 'contact', alignment: 'center', margin: [0, 3, 0, 6] });
+
+  // --- SUMMARY ---
   if (r.summary) {
-    content.push({ text: 'PROFESSIONAL SUMMARY', style: 'section' });
-    content.push({ text: r.summary, style: 'body', margin: [0, 4, 0, 8] });
+    content.push(...sectionHeader('SUMMARY'));
+    content.push({ text: r.summary, style: 'body', margin: [0, 0, 0, 6] });
   }
 
-  // Experience
+  // --- SKILLS (categorized) ---
+  if (r.skillsText || (r.skills?.length)) {
+    content.push(...sectionHeader('SKILLS'));
+    if (r.skillsText) {
+      // Categorized skills: "Languages: Python, JS\nBackend: Django, FastAPI"
+      const lines = r.skillsText.split('\n').filter(l => l.trim());
+      lines.forEach(line => {
+        const colonIdx = line.indexOf(':');
+        if (colonIdx > 0) {
+          content.push({
+            text: [
+              { text: line.slice(0, colonIdx + 1) + ' ', bold: true, fontSize: 9 },
+              { text: line.slice(colonIdx + 1).trim(), fontSize: 9 },
+            ],
+            style: 'skillLine',
+          });
+        } else {
+          content.push({ text: line, style: 'skillLine' });
+        }
+      });
+      content.push({ text: '', margin: [0, 0, 0, 4] });
+    } else {
+      content.push({ text: r.skills.join(' • '), style: 'body', margin: [0, 0, 0, 6] });
+    }
+  }
+
+  // --- EXPERIENCE ---
   if (r.experience?.length) {
-    content.push({ text: 'EXPERIENCE', style: 'section' });
-    r.experience.forEach(exp => {
+    content.push(...sectionHeader('EXPERIENCE'));
+    r.experience.forEach((exp, i) => {
+      // Role + dates on same line
       content.push({
         columns: [
           { text: exp.role || '', style: 'jobTitle', width: '*' },
-          { text: `${exp.startDate || ''} - ${exp.endDate || ''}`, style: 'dates', width: 'auto', alignment: 'right' },
+          { text: `${exp.startDate || ''} – ${exp.endDate || ''}`, style: 'dates', width: 'auto', alignment: 'right' },
         ],
-        margin: [0, 6, 0, 0],
+        margin: [0, i > 0 ? 6 : 0, 0, 0],
       });
-      content.push({ text: exp.company || '', style: 'company', margin: [0, 1, 0, 3] });
+      // Company
+      content.push({ text: exp.company || '', style: 'company', margin: [0, 1, 0, 2] });
+      // Bullets
       if (exp.bullets?.length) {
-        content.push({ ul: exp.bullets.map(b => ({ text: b, style: 'bullet' })), margin: [8, 0, 0, 4] });
+        exp.bullets.forEach(b => {
+          content.push({
+            columns: [
+              { text: '•', width: 10, style: 'bulletDot' },
+              { text: b, style: 'bullet', width: '*' },
+            ],
+            columnGap: 4,
+            margin: [0, 1, 0, 0],
+          });
+        });
       }
     });
+    content.push({ text: '', margin: [0, 0, 0, 4] });
   }
 
-  // Skills
-  if (r.skills?.length) {
-    content.push({ text: 'SKILLS', style: 'section', margin: [0, 6, 0, 4] });
-    content.push({ text: r.skills.join('  \u2022  '), style: 'body', margin: [0, 0, 0, 8] });
-  }
-
-  // Projects
+  // --- PROJECTS ---
   if (r.projects?.length) {
-    content.push({ text: 'PROJECTS', style: 'section', margin: [0, 6, 0, 4] });
-    r.projects.forEach(proj => {
-      const projHeader = [proj.name || ''];
-      if (proj.tech) projHeader.push(proj.tech);
+    content.push(...sectionHeader('PROJECTS'));
+    r.projects.forEach((proj, i) => {
       content.push({
         columns: [
-          { text: projHeader[0], style: 'jobTitle', width: '*' },
-          { text: proj.tech || '', style: 'dates', width: 'auto', alignment: 'right' },
+          { text: proj.name || '', style: 'jobTitle', width: '*' },
+          { text: proj.tech || '', style: 'techStack', width: 'auto', alignment: 'right' },
         ],
-        margin: [0, 4, 0, 0],
+        margin: [0, i > 0 ? 4 : 0, 0, 0],
       });
-      if (proj.link) {
-        content.push({ text: proj.link, style: 'contact', margin: [0, 1, 0, 2] });
-      }
       if (proj.bullets?.length) {
-        content.push({ ul: proj.bullets.map(b => ({ text: b, style: 'bullet' })), margin: [8, 0, 0, 4] });
+        proj.bullets.forEach(b => {
+          const bulletText = proj.link && b === proj.bullets[proj.bullets.length - 1]
+            ? b + (b.includes(proj.link) ? '' : ' ' + proj.link)
+            : b;
+          content.push({
+            columns: [
+              { text: '•', width: 10, style: 'bulletDot' },
+              { text: bulletText, style: 'bullet', width: '*' },
+            ],
+            columnGap: 4,
+            margin: [0, 1, 0, 0],
+          });
+        });
       }
     });
+    content.push({ text: '', margin: [0, 0, 0, 4] });
   }
 
-  // Education
+  // --- EDUCATION ---
   if (r.education?.length) {
-    content.push({ text: 'EDUCATION', style: 'section', margin: [0, 6, 0, 4] });
+    content.push(...sectionHeader('EDUCATION'));
     r.education.forEach(edu => {
+      const left = [edu.degree || ''];
+      if (edu.institution) left.push(edu.institution);
+      if (edu.score) left.push('— ' + edu.score);
       content.push({
         columns: [
-          { text: edu.degree || '', style: 'jobTitle', width: '*' },
+          { text: left.join('  ', ), style: 'eduLine', width: '*' },
           { text: edu.year || '', style: 'dates', width: 'auto', alignment: 'right' },
         ],
+        margin: [0, 2, 0, 0],
       });
-      const eduSub = [edu.institution || ''];
-      if (edu.score) eduSub.push(edu.score);
-      content.push({ text: eduSub.join(' — '), style: 'company', margin: [0, 1, 0, 4] });
     });
+    content.push({ text: '', margin: [0, 0, 0, 4] });
   }
 
-  // Certifications
+  // --- CERTIFICATIONS ---
   if (r.certifications?.length) {
-    content.push({ text: 'CERTIFICATIONS', style: 'section', margin: [0, 6, 0, 4] });
-    content.push({ ul: r.certifications.map(c => ({ text: c, style: 'bullet' })), margin: [8, 0, 0, 4] });
+    content.push(...sectionHeader('CERTIFICATIONS'));
+    r.certifications.forEach(c => {
+      content.push({
+        columns: [
+          { text: '•', width: 10, style: 'bulletDot' },
+          { text: c, style: 'bullet', width: '*' },
+        ],
+        columnGap: 4,
+        margin: [0, 1, 0, 0],
+      });
+    });
   }
 
   const dd = {
     content,
     pageSize: 'A4',
-    pageMargins: [40, 40, 40, 40],
+    pageMargins: [36, 36, 36, 36],
     defaultStyle: { font: 'Roboto' },
     styles: {
-      name: { fontSize: 20, bold: true, color: '#1a1a1a' },
-      title: { fontSize: 11, color: '#555' },
-      contact: { fontSize: 9, color: '#666' },
-      section: { fontSize: 11, bold: true, color: '#1a1a1a', decoration: 'underline', margin: [0, 8, 0, 4] },
-      jobTitle: { fontSize: 10, bold: true, color: '#222' },
-      company: { fontSize: 10, italics: true, color: '#444' },
-      dates: { fontSize: 9, color: '#666' },
-      body: { fontSize: 10, color: '#333', lineHeight: 1.4 },
-      bullet: { fontSize: 9.5, color: '#333', lineHeight: 1.3 },
+      name: { fontSize: 16, bold: true, color: '#000000', characterSpacing: 1.5 },
+      contact: { fontSize: 8.5, color: '#333333' },
+      section: { fontSize: 10.5, bold: true, color: '#000000', margin: [0, 6, 0, 0] },
+      jobTitle: { fontSize: 9.5, bold: true, color: '#000000' },
+      company: { fontSize: 9, italics: true, color: '#333333' },
+      techStack: { fontSize: 8.5, italics: true, color: '#444444' },
+      dates: { fontSize: 9, color: '#333333' },
+      body: { fontSize: 9, color: '#222222', lineHeight: 1.35 },
+      skillLine: { fontSize: 9, color: '#222222', lineHeight: 1.4 },
+      bullet: { fontSize: 8.5, color: '#222222', lineHeight: 1.3 },
+      bulletDot: { fontSize: 8.5, color: '#222222' },
+      eduLine: { fontSize: 9, color: '#222222' },
     },
   };
 
