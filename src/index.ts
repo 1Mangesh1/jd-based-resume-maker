@@ -81,14 +81,14 @@ function cleanText(raw: string): string {
 
 // --- AI ---
 
-async function runAI(ai: Ai, system: string, prompt: string): Promise<string> {
+async function runAI(ai: Ai, system: string, prompt: string, temp = 0.3): Promise<string> {
   const res = await ai.run(MODEL as BaseAiTextGenerationModels, {
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: prompt },
     ],
     max_tokens: 4096,
-    temperature: 0.3,
+    temperature: temp,
   });
 
   if (typeof res === 'string') return res;
@@ -180,6 +180,8 @@ Rules:
 
 async function handleTailor(body: any, env: Env) {
   const { profile, jdText, answers } = body;
+  const intensity = Math.min(5, Math.max(1, body.intensity || 3));
+
   if (!profile || !jdText) {
     return json({ error: 'profile and jdText are required' }, 400);
   }
@@ -188,10 +190,23 @@ async function handleTailor(body: any, env: Env) {
     .map(([skill, answer]) => `- ${skill}: ${answer}`)
     .join('\n') || 'No additional answers.';
 
+  const intensityGuide: Record<number, string> = {
+    1: 'MINIMAL changes: only reorder sections and skills. Keep ALL bullet text exactly as-is. Do NOT rewrite anything.',
+    2: 'CONSERVATIVE: reorder sections and skills for relevance. Only tweak 1-2 words per bullet to add JD keywords. Keep the original voice.',
+    3: 'BALANCED: reorder for relevance, rewrite bullets to naturally include JD keywords while keeping the original achievements and metrics.',
+    4: 'AGGRESSIVE: significantly rewrite bullets to maximize JD keyword matches. Emphasize relevant experience heavily. Still keep all entries.',
+    5: 'FULL REWRITE: completely rewrite summary and all bullets optimized for this specific JD. Maximize ATS keyword matches. Keep all entries but rewrite everything.',
+  };
+
+  // Map intensity 1-5 to AI temperature 0.1-0.6
+  const aiTemp = 0.1 + (intensity - 1) * 0.125;
+
   const raw = await runAI(
     env.AI,
     'You are an expert resume writer. Respond ONLY with valid JSON, no markdown.',
-    `Tailor this resume for the job description. KEEP ALL ORIGINAL CONTENT — only reorder and rewrite to emphasize relevance.
+    `Tailor this resume for the job description.
+
+INTENSITY LEVEL: ${intensity}/5 — ${intensityGuide[intensity]}
 
 JOB DESCRIPTION:
 ${jdText}
@@ -225,16 +240,18 @@ Return JSON with the COMPLETE resume — every experience, project, education en
 
 CRITICAL RULES:
 - Include ALL experience entries from the original - do NOT drop any
-- Include ALL projects from the original
-- Include ALL education entries
-- Keep ALL bullet points — reword them to emphasize JD-relevant keywords but keep the substance
+- Include ALL projects with their FULL original details (name, tech stack, ALL bullets, links) - do NOT make them generic
+- Include ALL education entries with scores
+- Keep ALL bullet points — reword based on intensity level but keep the substance, metrics, and specifics
+- Projects must keep their specific technical details and achievements - NEVER replace with generic descriptions
 - Reorder skills so JD-relevant ones come first, but keep ALL skills
 - Reorder experience bullets so the most relevant are first
 - Add keywords from gap answers naturally into existing bullets where the candidate confirmed experience
 - Do NOT fabricate new experience or bullets
 - Do NOT remove content - the output should be as comprehensive as the input
-- If candidate said "No" to a gap, do NOT add that skill`
-  );
+- If candidate said "No" to a gap, do NOT add that skill
+- Follow the INTENSITY LEVEL guide strictly`
+    , aiTemp);
 
   try {
     const resume = parseJSON(raw);

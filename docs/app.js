@@ -224,6 +224,26 @@ async function sendAnswer() {
 // --- Generate ---
 
 function showGenButton() {
+  // Temperature slider
+  const sliderWrap = document.createElement('div');
+  sliderWrap.className = 'temp-slider';
+  sliderWrap.innerHTML = `
+    <div class="temp-label">
+      <span>Tailoring intensity</span>
+      <span class="temp-value" id="tempVal">Balanced</span>
+    </div>
+    <input type="range" min="1" max="5" value="3" id="tempSlider">
+    <div class="temp-ticks">
+      <span>Keep original</span>
+      <span>Rewrite for JD</span>
+    </div>`;
+  chatArea.appendChild(sliderWrap);
+
+  const slider = sliderWrap.querySelector('#tempSlider');
+  const valLabel = sliderWrap.querySelector('#tempVal');
+  const labels = ['Minimal', 'Conservative', 'Balanced', 'Aggressive', 'Full rewrite'];
+  slider.oninput = () => { valLabel.textContent = labels[slider.value - 1]; };
+
   const btn = document.createElement('button');
   btn.className = 'btn-gen';
   btn.textContent = 'Generate Tailored Resume';
@@ -234,6 +254,9 @@ function showGenButton() {
 
 async function generate() {
   const btn = chatArea.querySelector('.btn-gen');
+  const slider = document.getElementById('tempSlider');
+  const intensity = slider ? parseInt(slider.value) : 3;
+
   if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
   loading();
 
@@ -243,6 +266,7 @@ async function generate() {
       profile,
       jdText: session.jdText,
       answers: session.answers,
+      intensity,
     });
     stopLoading();
 
