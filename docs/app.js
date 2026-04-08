@@ -340,62 +340,60 @@ function showEditForm() {
 
 // PDF text extraction using pdf.js
 async function extractPDFText(file) {
+  if (typeof pdfjsLib === 'undefined') {
+    throw new Error('PDF reader not loaded. Paste your resume text instead.');
+  }
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let text = '';
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    text += content.items.map(item => item.str).join(' ') + '\n';
+    const tc = await page.getTextContent();
+    text += tc.items.map(item => item.str).join(' ') + '\n';
   }
   return text;
 }
 
 async function parseResume() {
-  let text = '';
-
-  if (resumeFile.files.length > 0) {
-    const file = resumeFile.files[0];
-    parseStatus.textContent = 'Extracting text from PDF...';
-    parseStatus.className = 'parse-status';
-    if (file.name.endsWith('.pdf')) {
-      try {
-        text = await extractPDFText(file);
-      } catch (e) {
-        parseStatus.textContent = 'Failed to read PDF. Try pasting the text instead.';
-        parseStatus.className = 'parse-status error';
-        return;
-      }
-    } else {
-      text = await file.text();
-    }
-  } else if (resumeText.value.trim()) {
-    text = resumeText.value.trim();
-  }
-
-  if (!text || text.length < 20) {
-    parseStatus.textContent = 'Upload a PDF or paste your resume text first.';
-    parseStatus.className = 'parse-status error';
-    return;
-  }
-
-  parseBtn.disabled = true;
-  parseStatus.textContent = 'AI is parsing your resume...';
-  parseStatus.className = 'parse-status';
-
   try {
+    let text = '';
+
+    if (resumeFile.files && resumeFile.files.length > 0) {
+      const file = resumeFile.files[0];
+      parseStatus.textContent = 'Extracting text from ' + file.name + '...';
+      parseStatus.className = 'parse-status';
+      if (file.name.toLowerCase().endsWith('.pdf')) {
+        text = await extractPDFText(file);
+      } else {
+        text = await file.text();
+      }
+    } else if (resumeText.value.trim()) {
+      text = resumeText.value.trim();
+    }
+
+    if (!text || text.length < 20) {
+      parseStatus.textContent = 'Upload a PDF or paste your resume text first.';
+      parseStatus.className = 'parse-status error';
+      return;
+    }
+
+    parseBtn.disabled = true;
+    parseStatus.textContent = 'AI is parsing your resume...';
+    parseStatus.className = 'parse-status';
+
     const data = await api('/api/parse-resume', { text });
     const profile = data.profile;
     saveProfile(profile);
     fillForm(profile);
     showEditForm();
     parseStatus.textContent = '';
+    parseBtn.disabled = false;
   } catch (e) {
-    parseStatus.textContent = 'Parse failed: ' + e.message;
+    console.error('Parse error:', e);
+    parseStatus.textContent = 'Error: ' + (e.message || e);
     parseStatus.className = 'parse-status error';
+    parseBtn.disabled = false;
   }
-
-  parseBtn.disabled = false;
 }
 
 // Drag & drop (click handled by <label for="resumeFile">)
