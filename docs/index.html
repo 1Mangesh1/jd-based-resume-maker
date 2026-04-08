@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JD Resume Tailor</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="top-bar">
+      <div class="logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        <span>JD Resume Tailor</span>
+      </div>
+      <button class="btn-ghost" id="profileBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        Profile
+      </button>
+    </header>
+
+    <div class="url-bar">
+      <input type="text" id="urlInput" placeholder="Paste job description URL or text..." autocomplete="off">
+      <button class="btn-primary" id="analyzeBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="chat-area" id="chatArea">
+      <div class="welcome" id="welcome">
+        <p>Paste a job description URL above to get started.</p>
+        <p class="dim">I'll analyze the JD, ask a few honest questions, then generate a tailored resume PDF.</p>
+      </div>
+    </div>
+
+    <div class="chat-input-bar" id="chatInputBar" style="display:none">
+      <input type="text" id="chatInput" placeholder="Type your answer..." autocomplete="off">
+      <button class="btn-primary" id="sendBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div class="overlay" id="profileModal">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>Your Profile</h2>
+        <button class="btn-ghost close-btn" id="closeModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="profileForm">
+          <div class="row">
+            <div class="field"><label>Full Name</label><input name="name" required placeholder="John Doe"></div>
+            <div class="field"><label>Title</label><input name="title" required placeholder="Software Engineer"></div>
+          </div>
+          <div class="row">
+            <div class="field"><label>Email</label><input name="email" placeholder="john@example.com"></div>
+            <div class="field"><label>Phone</label><input name="phone" placeholder="+1 555-0123"></div>
+          </div>
+          <div class="field"><label>Location</label><input name="location" placeholder="San Francisco, CA"></div>
+          <div class="field"><label>Summary</label><textarea name="summary" rows="3" placeholder="Brief professional summary..."></textarea></div>
+          <div class="field"><label>Skills <span class="dim">(comma-separated)</span></label><textarea name="skills" rows="2" placeholder="JavaScript, Python, AWS..."></textarea></div>
+
+          <div class="section-head"><span>Experience</span><button type="button" class="btn-sm" id="addExp">+ Add</button></div>
+          <div id="expList"></div>
+
+          <div class="section-head"><span>Education</span><button type="button" class="btn-sm" id="addEdu">+ Add</button></div>
+          <div id="eduList"></div>
+
+          <div class="field"><label>Certifications <span class="dim">(comma-separated)</span></label><textarea name="certs" rows="2" placeholder="AWS SA, CKA..."></textarea></div>
+          <div class="field"><label>Links <span class="dim">(one per line: Label | URL)</span></label><textarea name="links" rows="2" placeholder="LinkedIn | https://..."></textarea></div>
+
+          <button type="submit" class="btn-primary btn-full">Save Profile</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

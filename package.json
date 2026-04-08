@@ -1,0 +1,16 @@
+{
+  "name": "jd-based-resume-maker",
+  "version": "1.0.0",
+  "description": "JD-based resume tailor powered by Cloudflare Workers AI",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20260408.1",
+    "typescript": "^6.0.2",
+    "wrangler": "^4.81.0"
+  }
+}
