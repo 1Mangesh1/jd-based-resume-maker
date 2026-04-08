@@ -338,62 +338,74 @@ function showEditForm() {
   profileForm.style.display = '';
 }
 
-// PDF text extraction using pdf.js
-async function extractPDFText(file) {
-  if (typeof pdfjsLib === 'undefined') {
-    throw new Error('PDF reader not loaded. Paste your resume text instead.');
+// Extract readable text from PDF bytes (no dependencies)
+function extractTextFromPDF(arrayBuffer) {
+  const bytes = new Uint8Array(arrayBuffer);
+  let raw = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b >= 32 && b < 127) raw += String.fromCharCode(b);
+    else if (b === 10 || b === 13) raw += '\n';
+    else raw += ' ';
   }
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let text = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const tc = await page.getTextContent();
-    text += tc.items.map(item => item.str).join(' ') + '\n';
-  }
+  // Clean: collapse whitespace, remove binary noise
+  let text = raw.replace(/[^\x20-\x7E\n]/g, ' ').replace(/ {3,}/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  // Filter out lines that look like binary/PDF commands
+  text = text.split('\n')
+    .filter(l => l.length > 3 && !/^[\d\s.]+$/.test(l) && !/^\/\w+/.test(l) && !/^\d+ \d+ obj/.test(l) && !/^stream|endstream|endobj/.test(l))
+    .join('\n');
   return text;
 }
 
 async function parseResume() {
+  let text = '';
   try {
-    let text = '';
-
     if (resumeFile.files && resumeFile.files.length > 0) {
       const file = resumeFile.files[0];
-      parseStatus.textContent = 'Extracting text from ' + file.name + '...';
+      parseStatus.textContent = 'Reading ' + file.name + '...';
       parseStatus.className = 'parse-status';
+
       if (file.name.toLowerCase().endsWith('.pdf')) {
-        text = await extractPDFText(file);
+        const buf = await file.arrayBuffer();
+        text = extractTextFromPDF(buf);
+        if (text.length < 50) {
+          parseStatus.textContent = 'Could not read PDF text. Paste your resume text below instead.';
+          parseStatus.className = 'parse-status error';
+          return;
+        }
       } else {
         text = await file.text();
       }
     } else if (resumeText.value.trim()) {
       text = resumeText.value.trim();
     }
+  } catch (e) {
+    parseStatus.textContent = 'Failed to read file: ' + (e.message || e);
+    parseStatus.className = 'parse-status error';
+    return;
+  }
 
-    if (!text || text.length < 20) {
-      parseStatus.textContent = 'Upload a PDF or paste your resume text first.';
-      parseStatus.className = 'parse-status error';
-      return;
-    }
+  if (!text || text.length < 20) {
+    parseStatus.textContent = 'Upload a PDF or paste your resume text first.';
+    parseStatus.className = 'parse-status error';
+    return;
+  }
 
-    parseBtn.disabled = true;
-    parseStatus.textContent = 'AI is parsing your resume...';
-    parseStatus.className = 'parse-status';
+  parseBtn.disabled = true;
+  parseStatus.textContent = 'AI is parsing your resume...';
+  parseStatus.className = 'parse-status';
 
+  try {
     const data = await api('/api/parse-resume', { text });
-    const profile = data.profile;
-    saveProfile(profile);
-    fillForm(profile);
+    saveProfile(data.profile);
+    fillForm(data.profile);
     showEditForm();
     parseStatus.textContent = '';
-    parseBtn.disabled = false;
   } catch (e) {
-    console.error('Parse error:', e);
-    parseStatus.textContent = 'Error: ' + (e.message || e);
+    parseStatus.textContent = 'Parse failed: ' + (e.message || e);
     parseStatus.className = 'parse-status error';
-    parseBtn.disabled = false;
   }
+  parseBtn.disabled = false;
 }
 
 // Drag & drop (click handled by <label for="resumeFile">)
